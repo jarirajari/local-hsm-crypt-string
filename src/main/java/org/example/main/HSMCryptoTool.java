@@ -20,17 +20,18 @@ public class HSMCryptoTool {
     private KeyStore hsmKeyStore;
 
     public HSMCryptoTool() {
-        Optional<String> config = Optional.ofNullable(System.getenv(ENV_CONFIG));
-        System.out.println("file="+config.get());
-
-        this.hsmProvider = new sun.security.pkcs11.SunPKCS11(config.orElse(DEFAULT_CONFIG));
-        System.out.println("hsmProvider="+this.hsmProvider.getInfo());
-
         try {
+            Optional<String> config = Optional.ofNullable(System.getenv(ENV_CONFIG));
+            if (! config.isPresent()) {
+                throw new RuntimeException("No PKCS11 config file present: EXPORT HSM=</absolute/filen.name>");
+            }
+            this.hsmProvider = new sun.security.pkcs11.SunPKCS11(config.orElse(DEFAULT_CONFIG));
             this.hsmKeyStore = KeyStore.getInstance("PKCS11", this.hsmProvider);
             this.hsmKeyStore.load(null, HSM_PIN.toCharArray());
         } catch (KeyStoreException | IOException | CertificateException | NoSuchAlgorithmException ex) {
-            System.out.println("Could not initialize HSM: "+ex.getMessage());
+            System.err.println("Could not initialize HSM: "+ex.getMessage());
+        } finally {
+            System.out.println("Using crypto provider="+this.hsmProvider.getInfo());
         }
     }
 
@@ -42,16 +43,17 @@ public class HSMCryptoTool {
         ec.init(Cipher.ENCRYPT_MODE, publicKey().get());
         encryptedBytes = ec.doFinal(unencrypted);
 
-        return encryptedBytes;
+        return Base64.getEncoder().encode(encryptedBytes);
     }
 
     public byte[] /* unencrypted */ decryptString(byte[] encrypted) throws InvalidKeyException, IllegalBlockSizeException, BadPaddingException {
         Cipher dc;
         byte[] decryptedBytes;
+        byte[] b64 = Base64.getDecoder().decode(encrypted);
 
         dc = RSACipher(this.hsmProvider);
         dc.init(Cipher.DECRYPT_MODE, privateKey().get());
-        decryptedBytes = dc.doFinal(encrypted);
+        decryptedBytes = dc.doFinal(b64);
 
         return decryptedBytes;
     }

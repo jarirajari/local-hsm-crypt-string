@@ -1,9 +1,15 @@
 package org.example.main;
 
 import picocli.CommandLine;
+
+import java.nio.charset.StandardCharsets;
+import java.security.InvalidKeyException;
 import java.security.Provider;
 import java.security.Security;
 import com.nimbusds.jose.crypto.bc.BouncyCastleProviderSingleton;
+
+import javax.crypto.BadPaddingException;
+import javax.crypto.IllegalBlockSizeException;
 
 public class Application {
 
@@ -13,11 +19,17 @@ public class Application {
      */
     public static void main(String... args) {
         HSMCryptoTool tool = new HSMCryptoTool();
+        String verySecretString = "https://jarirajari.wordpress.com";
         try {
-            tool.init();
-        } catch (Exception e) {
+            // BE VERY CAREFUL WITH byte[] <=> String conversions!
+            byte[] es = tool.encryptString(verySecretString.getBytes(StandardCharsets.UTF_8));
+            System.out.println(es);
+            byte[] ds = tool.decryptString(es);
+            System.out.println(ds);
+        } catch (InvalidKeyException | IllegalBlockSizeException | BadPaddingException e) {
             e.printStackTrace();
         }
+
         int exitCode = new CommandLine(new Checksum()).execute(args);
         System.exit(exitCode);
     }
